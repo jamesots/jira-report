@@ -7,7 +7,7 @@ dotenv.config();
 const endpoint = process.env.ENDPOINT + '/rest/api/3';
 const username = process.env.USERNAME;
 const apiKey = process.env.API_KEY;
-const projectId = process.env.PROJECT_ID;
+const projectIds = process.env.PROJECT_ID?.split(',') || [];
 const hoursPerDay = Number(process.env.HOURS_PER_DAY);
 const daysPerWeek = Number(process.env.DAYS_PER_WEEK);
 const sprintOverhead = Number(process.env.SPRINT_OVERHEAD);
@@ -47,25 +47,31 @@ async function api(path: string) {
     });
 }
 
+async function getIssues(projectId: string): Promise<{issues: Issue[]}> {
+    console.log(chalk.grey(`Fetching tasks for project ${projectId}`));
+    return (await api(
+            `/search?jql=${encodeURI(
+                `project=${projectId}`
+            )}&maxResults=5000&fields=id`
+        )
+    ).json();
+}
+
 async function go() {
     const myself = await (await api(`/myself`)).json();
     const accountId = myself.accountId;
     const startOfThisWeek = startOfWeek(new Date(), { weekStartsOn: 1 });
     const endOfThisWeek = add(startOfThisWeek, { weeks: 1 });
 
-    const issues: { issues: Issue[] } = await (
-        await api(
-            `/search?jql=${encodeURI(
-                `project=${projectId}`
-            )}&maxResults=5000&fields=id`
-        )
-    ).json();
+    const issuePromises = projectIds.map(projectId => getIssues(projectId));
+    const issues = (await Promise.all(issuePromises)).flatMap(issues => issues.issues);
 
     let totalTime = 0;
 
+    console.log();
     console.log(chalk.underline('Tasks with work logged this week'));
     await Promise.all(
-        issues.issues.map(async (issue) => {
+        issues.map(async (issue) => {
             const worklogs: { worklogs: WorkLog[] } = await (
                 await api(
                     `/issue/${

@@ -1,2 +1,5 @@
 .env
 node_modules
+NOTES.md
+apps.json
+data.json
